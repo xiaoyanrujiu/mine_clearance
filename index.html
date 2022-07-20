@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        nav {
+            display: table;
+            height: 80px;
+            background-color: aquamarine;
+        }
+
+        nav .group {
+            display: table-cell;
+            width: 200px;
+            height: 80px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        #mode {
+            width: 100px;
+            height: 40px;
+        }
+
+        #play {
+            width: 100px;
+            height: 40px;
+            background-color: coral;
+            color: #fff;
+            border: 0;
+        }
+
+        table {
+            border: 3px solid #666;
+            border-radius: 10px;
+            border-spacing: 1px;
+            padding: 10px;
+            margin-top: 20px;
+        }
+
+        table td {
+            width: 30px;
+            height: 30px;
+            background-color: #c0c0c0;
+            border: 3px solid;
+            border-color: #e3e3e3 #999 #999 #e3e3e3;
+            cursor: pointer;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        table td:hover,
+        table td.zero {
+            border: 0;
+        }
+
+        table td.one,
+        table td.two {
+            color: #333;
+            border: 0;
+        }
+
+        table td.three,
+        table td.four {
+            color: yellow;
+            border: 0;
+        }
+
+        table td.five,
+        table td.six {
+            color: green;
+            border: 0;
+        }
+
+        table td.seven,
+        table td.eight {
+            color: blue;
+            border: 0;
+        }
+
+        table td.flag {
+            background-image: url('img/flag.png');
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: 20px 20px;
+        }
+
+        table td.suspected {
+            background-image: url('img/suspected.png');
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: 20px 20px;
+        }
+
+        table td.mine {
+            border: 0;
+            background-image: url('img/mine.png');
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: 20px 20px;
+        }
+
+        table td.mine.boom {
+            border: 0;
+            background-color: pink;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <div class="group">
+            <span>游戏模式：</span>
+            <select id="mode">
+                <option value="easy">简单模式</option>
+                <option value="middle" selected>中级模式</option>
+                <option value="hard">困难模式</option>
+                <option value="hell">地狱模式</option>
+            </select>
+        </div>
+        <div class="group">
+            <button id="play">开始游戏</button>
+        </div>
+        <div class="group">
+            <span>剩余雷数：</span>
+            <span id="rest-count">20</span>
+        </div>
+        <div class="group">
+            <span>计时器：</span>
+            <span id="time">0</span>
+        </div>
+    </nav>
+    <table>
+        <tbody id="game-box"></tbody>
+    </table>
+</body>
+<script>
+    var selectList = document.querySelector('select');
+    var playBtn = document.querySelector('#play');
+    var restBox = document.querySelector('#rest-count');
+    var timeBox = document.querySelector('#time');
+    var gameBox = document.querySelector('#game-box');
+
+    // 各种模式的基础数据（设置单元格的多少和雷的多少）
+    // horizontal 水平的，横向的    vertical 垂直的，纵向的
+    var modeList = {
+        easy: {
+            h_length: 10,
+            v_length: 10,
+            mine_count: 10
+            // 0.1
+        },
+        middle: {
+            h_length: 20,
+            v_length: 15,
+            mine_count: 45
+            // 0.15
+        },
+        hard: {
+            h_length: 30,
+            v_length: 20,
+            mine_count: 90
+            // 0.2
+        },
+        hell: {
+            h_length: 40,
+            v_length: 30,
+            mine_count: 120
+        }
+    };
+    // 设置默认难度
+    var mode = modeList['middle'];
+    // 利用 change 事件获取选中的难度
+    selectList.onchange = function () {
+        var modeType = selectList.value;
+        mode = modeList[modeType];
+    }
+    // 点击开始游戏按钮，根据选中的模式进行游戏
+    playBtn.onclick = function () {
+        play(mode);
+    }
+
+    // 表格标签阻止右键事件
+    gameBox.parentElement.oncontextmenu = function (e) {
+        e.preventDefault();
+    }
+
+    function play(mode) {
+        // 设置一个游戏游戏结束的标记
+        var gameover = false;
+
+        // 生成指定数量的随机数，随机数范围是[0, 格子的总数)
+        // 计算随机数范围
+        var total = mode.v_length * mode.h_length;
+        // 设置随机数的数量
+        var mine_count = mode.mine_count;
+        restBox.innerHTML = mode.mine_count;
+
+        // 声明用于保存随机数的数组：随机数的用途就是所有单元格的索引值
+        var mineIndexList = [];
+        while (mine_count--) {
+            var index = Math.floor(Math.random() * total);
+            // 在将生成随机数向数组中存放时，应该先判断数组内是否已经有当前的随机数
+            if (mineIndexList.indexOf(index) === -1) {
+                mineIndexList.push(index);
+            } else {
+                // 若生成的随机数已经存在，则当次计数作废
+                mine_count++;
+            }
+        }
+
+        // 在每次新建标签之前，都清空原有的标签
+        gameBox.innerHTML = '';
+        // 声明 td（单元格）的全局索引值
+        var tdIndex = 0;
+
+        // 声明一个数组，用于按照视图的位置保存所有的单元格
+        var map = [];
+
+        // 根据模式的设置，产生创建对应的游戏区
+        for (var i = 0; i < mode.v_length; i++) {
+            var tr = document.createElement('tr');
+            map[i] = [];
+            // [ [],[],[],[] ]
+
+            for (var j = 0; j < mode.h_length; j++) {
+                var td = document.createElement('td');
+                // 在循环中，将每一个 td 的全局索引值进行判断，
+                // 判断是否在指定的雷的索引值范围内
+                if (mineIndexList.indexOf(tdIndex) < 0) {
+                    // 普通格
+                    td.type = 'number';
+                    td.value = 0;   // 默认周围有 0 个雷
+                } else {
+                    // 雷
+                    td.type = 'mine';
+                    td.value = '雷';
+                }
+
+                // 扩展通用属性
+                td.row = i;
+                td.col = j;
+                td.index = tdIndex;
+                td.state = 'blank';  // 添加状态标记，默认空白状态，用于识别右键和滚轮的功能
+
+                // 添加点击事件（要区分左键和右键）
+                td.onmousedown = function (e) {
+                    if (gameover) { return };
+
+                    // 获取被点击的单元格
+                    var target = e.target;
+
+                    switch (e.which) {
+                        // 左键：挖开这一格，查看实际的值
+                        case (1): {
+                            if (target.type === 'number') {
+                                function diffuse(origin) {
+                                    // 已经被检测过的单元格是不需要再被检测的
+                                    if (origin.checked) { return };
+                                    origin.checked = true;
+
+                                    // 根据级别控制内容的颜色（级别就是 value 的值）
+                                    var level = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+                                    var value = origin.value;
+                                    origin.className = level[value];
+
+                                    if (origin.value === 0) {
+                                        // 继续向外扩散
+                                        // 表示周围的 8 个格子都不是雷，向外扩散是安全的
+                                        // 当扩散到周围的格子的时候，仍然继续判断周围的格子
+                                        var aroundTds = getAroundTds(origin.row, origin.col);
+                                        for (var k = 0; k < aroundTds.length; k++) {
+                                            diffuse(aroundTds[k]);
+                                        }
+                                    } else {
+                                        // 如果是非 0 的数字，直接显示就可以了
+                                        origin.innerHTML = origin.value;
+                                    }
+                                }
+                                diffuse(target);
+                            } else if (target.type === 'mine') {
+                                // 获取页面中所有的雷
+                                for (var i = 0; i < map.length; i++) {
+                                    for (var j = 0; j < map[i].length; j++) {
+                                        if (map[i][j].type === 'mine') {
+                                            map[i][j].className = 'mine';
+                                        }
+                                    }
+                                }
+                                // 引爆的要额外补充一个类名
+                                target.classList.add('boom');
+
+                                // 修改标记，表示游戏结束
+                                gameover = true;
+                                alert('游戏结束');
+                            }
+                            break;
+                        }
+                        // 滚轮：预测某一格是雷，挂个问号
+                        case (2): {
+                            if (target.state !== 'suspected') {
+                                target.state = 'suspected';
+                                target.className = 'suspected';
+                            } else {
+                                target.state = 'blank';
+                                target.className = '';
+                            }
+                            break;
+                        }
+                        // 右键：确定这一格是雷，标个红旗
+                        case (3): {
+                            if (target.state !== 'flag') {
+                                target.state = 'flag';
+                                target.className = 'flag';
+                            } else {
+                                target.state = 'blank';
+                                target.className = '';
+                            }
+                            break;
+                        }
+                    }
+
+
+                    // 游戏结束标准
+                    // 1. 踩到雷：失败
+                    // 2. 标记的红旗数量和雷的数量相同（剩余雷数是否为 0）
+                    // 2.1 所有的红旗和所有的雷一对一标记，成功
+                    // 2.2 否则就是失败
+                    var allFlags = gameBox.querySelectorAll('.flag');
+                    var flagCount = allFlags.length;
+                    var restMineCount = mode.mine_count - flagCount;
+                    restBox.innerHTML = restMineCount;
+                    if (restMineCount === 0) {
+                        
+                        var flagArr = [];
+                        allFlags.forEach(function (flag) {
+                            flagArr.push(flag);
+                        });
+
+                        var ret = flagArr.every(function (flag) {
+                            // 判断红旗的索引值在不在雷的索引值名单中
+                            return mineIndexList.indexOf(flag.index) > -1;
+                        });
+                        if(ret) {
+                            alert('成功')
+                        } else {
+                            alert('失败')
+                        }
+
+                        gameover = true;
+                    }
+                }
+
+                tdIndex++;
+                tr.appendChild(td);
+                map[i][j] = td;
+            }
+
+            gameBox.appendChild(tr);
+        }
+
+        // 声明一个独立的 函数，专门用于获取某一格指定单元格周围的格子
+        function getAroundTds(row, col) {
+            /*  (row - 1, col - 1)    (row - 1, col)   (row - 1, col + 1)
+                (row, col - 1)        (row, col)       (row, col + 1)
+                (row + 1, col - 1)    (row +1, col)    (row + 1, col + 1)
+            */
+            var aroundTdsList = [];
+            for (var j = row - 1; j <= row + 1; j++) {
+                for (var i = col - 1; i <= col + 1; i++) {
+                    // 判断 i 和 j 不能使用的情况
+                    var bool = (row === j && col === i) || i < 0 || j < 0 || i >= mode.h_length || j >= mode.v_length;
+                    if (!bool) {
+                        var aroundTd = map[j][i];
+                        aroundTdsList.push(aroundTd);
+                    }
+                }
+            }
+            return aroundTdsList;
+        }
+
+        // 计算每一个单元格周围的雷数
+        for (var i = 0; i < map.length; i++) {
+            for (var j = 0; j < map[i].length; j++) {
+                var cell = map[i][j];
+                // 只判断数字周围的雷数
+                if (cell.type === 'number') {
+                    var aroundTdsList = getAroundTds(i, j);
+                    for (var k = 0; k < aroundTdsList.length; k++) {
+                        if (aroundTdsList[k].type === 'mine') {
+                            cell.value++;
+                        }
+                    }
+                }
+                // cell.innerHTML = cell.value;
+            }
+        }
+
+    }
+    // 设置默认模式的玩法
+    play(mode);
+</script>
+
+</html>
